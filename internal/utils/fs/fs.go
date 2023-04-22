@@ -27,7 +27,7 @@ func OpenReadOnlyFile(filePath string) (*os.File, uint64, error) {
 }
 
 func CreateWriteOnlyFile(filePath string) (*os.File, error) {
-	return os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_APPEND, 0644)
+	return os.OpenFile(filePath, os.O_CREATE|os.O_EXCL|os.O_APPEND|os.O_WRONLY, 0644)
 }
 
 func GetFileSize(file *os.File) (uint64, error) {
@@ -45,7 +45,7 @@ func EnsureDirExists(dirPath string) (created bool, err error) {
 			return false, fmt.Errorf("os.Stat failed: %w", err)
 		}
 
-		err = os.MkdirAll(dirPath, 0644)
+		err = os.MkdirAll(dirPath, 0744)
 		if err != nil {
 			return false, fmt.Errorf("os.Mkdir failed: %w", err)
 		}
