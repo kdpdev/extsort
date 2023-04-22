@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
 
 	"github.com/kdpdev/extsort/internal/utils/fs"
+	"github.com/kdpdev/extsort/internal/utils/misc"
 )
 
 func NewOsFs() Fs {
@@ -40,9 +40,15 @@ func (this *osFs) MoveFile(src, dst string) error {
 	}
 
 	if runtime.GOOS == "windows" {
-		from, _ := syscall.UTF16PtrFromString(src)
-		to, _ := syscall.UTF16PtrFromString(dst)
-		return syscall.MoveFile(from, to)
+		srcVol := filepath.VolumeName(src)
+		dstVol := filepath.VolumeName(dst)
+		if srcVol != dstVol {
+			err = this.CopyFile(src, dst)
+			if err == nil {
+				err = this.Remove(src)
+			}
+			return err
+		}
 	}
 
 	return os.Rename(src, dst)
@@ -50,4 +56,27 @@ func (this *osFs) MoveFile(src, dst string) error {
 
 func (this *osFs) Remove(entryPath string) error {
 	return os.Remove(entryPath)
+}
+
+func (this *osFs) CopyFile(src, dst string) (err error) {
+	onceErr := misc.NewOnceError(&err)
+
+	srcFile, _, err := this.OpenReadFile(src)
+	if err != nil {
+		return err
+	}
+	defer onceErr.Invoke(srcFile.Close)
+
+	dstFile, err := this.CreateWriteFile(dst)
+	if err != nil {
+		return err
+	}
+	defer onceErr.Invoke(dstFile.Close)
+
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
