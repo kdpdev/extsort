@@ -45,6 +45,11 @@ func test(linesCount uint, removeTempDir bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	exePath, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
 	tempDir, removeTempDirFn, err := ensureTempDirCreated()
 	if err != nil {
 		return err
@@ -61,19 +66,19 @@ func test(linesCount uint, removeTempDir bool) error {
 
 	commands := make([][]string, 0, 0)
 	commands = append(commands, []string{
-		"gen",
+		filepath.Join(exePath, "gen.exe"),
 		fmt.Sprintf("-out=%v", randLinesFile),
 		fmt.Sprintf("-lines=%v", linesCount)})
 
 	commands = append(commands, []string{
-		"sort",
+		filepath.Join(exePath, "sort.exe"),
 		fmt.Sprintf("-in=%v", randLinesFile),
 		fmt.Sprintf("-out=%v", sortedLinesFile),
 		fmt.Sprintf("-preferred_chunk_size_kb=%v", alg.Min(alg.Max(linesCount/10/1024, 128), 64*1024)),
 		fmt.Sprintf("-temp_dir=%v", tempDir)})
 
 	commands = append(commands, []string{
-		"check",
+		filepath.Join(exePath, "check.exe"),
 		fmt.Sprintf("-in=" + sortedLinesFile)})
 
 	for _, args := range commands {
@@ -151,8 +156,9 @@ func run(ctx context.Context, cmdName string, args ...string) error {
 		return err
 	}
 
+	cmdBaseName := filepath.Base(cmdName)
 	logf := func(format string, args ...interface{}) {
-		fmt.Printf(cmdName+": "+format+"\n", args...)
+		fmt.Printf(cmdBaseName+": "+format+"\n", args...)
 	}
 	stopLogger := startLogger(ctx, logf, stdErr, stdOut)
 	defer stopLogger()
