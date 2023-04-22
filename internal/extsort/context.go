@@ -136,14 +136,12 @@ func WithUnhandledErrorFilter(ctx context.Context, pass func(err error) bool) co
 }
 
 func WithUnhandledErrorContextErrorsFilter(ctx context.Context) context.Context {
+	skips := []error{context.Canceled, context.DeadlineExceeded}
 	return WithUnhandledErrorFilter(ctx, func(err error) bool {
-		cancelled := context.Canceled
-		if errors.As(err, &cancelled) {
-			return false
-		}
-		deadline := context.DeadlineExceeded
-		if errors.As(err, &deadline) {
-			return false
+		for _, skippingError := range skips {
+			if errors.Is(err, skippingError) {
+				return false
+			}
 		}
 		return true
 	})
@@ -179,7 +177,7 @@ func NoErrorDecorator() UnhandledErrorDecorator {
 
 func DefaultUnhandledErrorDecorator() UnhandledErrorDecorator {
 	return func(ctx context.Context, err error) error {
-		return fmt.Errorf("UNHANDLED ERROR: %v%v", GetScope(ctx), err)
+		return fmt.Errorf("UNHANDLED ERROR: %v%w", GetScope(ctx), err)
 	}
 }
 
