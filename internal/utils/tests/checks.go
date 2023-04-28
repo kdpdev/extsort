@@ -26,7 +26,7 @@ func CheckNotNilPtr[T any](t *testing.T, obj *T) {
 
 func CheckNotNilPtrf[T any](t *testing.T, obj *T, format string, args ...interface{}) {
 	if obj == nil {
-		fatalCheck(t, format+"\npointer is nil", append(args))
+		fatalCheck(t, format+"\npointer is nil", args...)
 	}
 }
 
