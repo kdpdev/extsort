@@ -95,7 +95,7 @@ func MakeNewWritersGen(idFmt string, createWriter func(id string) (io.WriteClose
 	return gen, nil
 }
 
-func FormatSileSize(fileSize uint64) string {
+func FormatFileSize(fileSize uint64) string {
 	const megabyte = 1024 * 1024
 	const kilobyte = 1024
 	if fileSize > megabyte {

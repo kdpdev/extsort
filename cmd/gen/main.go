@@ -87,7 +87,7 @@ func main() {
 	}
 
 	log.Printf("out: %v", absOutputFilePath)
-	log.Printf("size: %v", fs.FormatSileSize(fileSize))
+	log.Printf("size: %v", fs.FormatFileSize(fileSize))
 	onResult(absOutputFilePath, nil)
 }
 
@@ -99,7 +99,7 @@ func makeProgress(max uint, logf extsort.Logf) func(line string) {
 		size += uint64(len(line))
 		percents, value, changed := progress.Add(1)
 		if changed {
-			logf(logMsgFmt, percents, value, fs.FormatSileSize(size))
+			logf(logMsgFmt, percents, value, fs.FormatFileSize(size))
 		}
 	}
 }

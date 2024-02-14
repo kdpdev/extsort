@@ -94,7 +94,7 @@ func makeProgress(max uint64, logf extsort.Logf) func(size uint64) {
 		defer guard.Unlock()
 		percents, value, changed := progress.Add(size + 1) // +1 is because of the line is without end of line = '\n'
 		if changed {
-			logf(logMsgFmt, percents, value, fs.FormatSileSize(value))
+			logf(logMsgFmt, percents, value, fs.FormatFileSize(value))
 		}
 	}
 }

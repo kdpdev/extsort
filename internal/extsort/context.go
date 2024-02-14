@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/kdpdev/extsort/internal/extsort/env"
@@ -22,25 +24,26 @@ var (
 )
 
 type Logf = func(format string, args ...interface{})
-type UnhandledErrorHandler = func(ctx context.Context, err error)
-type UnhandledErrorDecorator = func(ctx context.Context, err error) error
 
 func DefaultLogf(format string, args ...interface{}) {
-	if len(format) > 0 && format[len(format)-1] != '\n' {
-		format += "\n"
-	}
-	fmt.Printf(format, args...)
+	log.Printf(format, args...)
+}
+
+func NoLogf(format string, args ...interface{}) {
 }
 
 func PrefixedLogger(prefix string, logf Logf) Logf {
 	prefix += ": "
 	return func(format string, args ...interface{}) {
-		logf("%s", prefix+fmt.Sprintf(format, args...))
+		builder := strings.Builder{}
+		_, _ = fmt.Fprintf(&builder, prefix)
+		_, _ = fmt.Fprintf(&builder, format, args...)
+		logf("%s", builder.String())
 	}
 }
 
-func NoLogf(format string, args ...interface{}) {
-}
+type UnhandledErrorHandler = func(ctx context.Context, err error)
+type UnhandledErrorDecorator = func(ctx context.Context, err error) error
 
 func getContextValue[T any](ctx context.Context, key contextKeyType, defaultValue T) T {
 	val := ctx.Value(key)
@@ -80,7 +83,7 @@ func GetScope(ctx context.Context) string {
 }
 
 func WithScope(ctx context.Context, scope string) context.Context {
-	return context.WithValue(ctx, contextKeyScope, fmt.Sprintf("%v%v: ", GetScope(ctx), scope))
+	return context.WithValue(ctx, contextKeyScope, fmt.Sprintf("%s%s: ", GetScope(ctx), scope))
 }
 
 func WithCallerScope(ctx context.Context) context.Context {
@@ -126,6 +129,31 @@ func WithUnhandledErrorLogger(ctx context.Context) context.Context {
 	})
 }
 
+func MakePassIsErrorFilter(err error, errs ...error) func(err error) bool {
+	return func(e error) bool {
+		if errors.Is(e, err) {
+			return true
+		}
+		for _, err := range errs {
+			if errors.Is(e, err) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func MakeSkipIsErrorFilter(err error, errs ...error) func(err error) bool {
+	pass := MakePassIsErrorFilter(err, errs...)
+	return func(err error) bool {
+		return !pass(err)
+	}
+}
+
+func MakeSkipContextErrorsFilter() func(err error) bool {
+	return MakeSkipIsErrorFilter(context.Canceled, context.DeadlineExceeded)
+}
+
 func WithUnhandledErrorFilter(ctx context.Context, pass func(err error) bool) context.Context {
 	prev := getUnhandledErrorHandlerWithoutErrorDecorating(ctx)
 	return WithUnhandledErrorHandler(ctx, func(ctx context.Context, err error) {
@@ -136,28 +164,32 @@ func WithUnhandledErrorFilter(ctx context.Context, pass func(err error) bool) co
 }
 
 func WithUnhandledErrorContextErrorsFilter(ctx context.Context) context.Context {
-	skips := []error{context.Canceled, context.DeadlineExceeded}
-	return WithUnhandledErrorFilter(ctx, func(err error) bool {
-		for _, skippingError := range skips {
-			if errors.Is(err, skippingError) {
-				return false
-			}
-		}
-		return true
-	})
+	return WithUnhandledErrorFilter(ctx, MakeSkipContextErrorsFilter())
 }
 
 func WithUnhandledErrorsCollector(ctx context.Context) (context.Context, func() []error) {
-	guard := &sync.Mutex{}
+	guard := &sync.RWMutex{}
+
 	errs := make([]error, 0)
-	getErrors := func() []error { return errs }
-	prev := getUnhandledErrorHandlerWithoutErrorDecorating(ctx)
-	return WithUnhandledErrorHandler(ctx, func(ctx context.Context, err error) {
+
+	getErrors := func() []error {
+		guard.RLock()
+		defer guard.RUnlock()
+		clone := make([]error, len(errs))
+		copy(clone, errs)
+		return clone
+	}
+
+	prevHandler := getUnhandledErrorHandlerWithoutErrorDecorating(ctx)
+
+	handler := func(ctx context.Context, err error) {
 		guard.Lock()
 		defer guard.Unlock()
 		errs = append(errs, err)
-		prev(ctx, err)
-	}), getErrors
+		prevHandler(ctx, err)
+	}
+
+	return WithUnhandledErrorHandler(ctx, handler), getErrors
 }
 
 func OnUnhandledError(ctx context.Context, err error) {
@@ -177,7 +209,7 @@ func NoErrorDecorator() UnhandledErrorDecorator {
 
 func DefaultUnhandledErrorDecorator() UnhandledErrorDecorator {
 	return func(ctx context.Context, err error) error {
-		return fmt.Errorf("UNHANDLED ERROR: %v%w", GetScope(ctx), err)
+		return fmt.Errorf("UNHANDLED ERROR: %s%w", GetScope(ctx), err)
 	}
 }
 

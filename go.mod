@@ -1,5 +1,5 @@
 module github.com/kdpdev/extsort
 
-go 1.20
+go 1.22.0
 
-require golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
+require golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
